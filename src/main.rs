@@ -4,9 +4,39 @@ mod github;
 mod output;
 
 use std::env;
+use std::fs;
 use std::process;
 
+fn load_dotenv() {
+    // Try .env in current dir, then next to the binary
+    let paths = [
+        std::env::current_dir().ok().map(|p| p.join(".env")),
+        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(".env"))),
+    ];
+    for path in paths.iter().flatten() {
+        if let Ok(content) = fs::read_to_string(path) {
+            for line in content.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    let key = key.trim();
+                    let value = value.trim();
+                    let existing = env::var(key).unwrap_or_default();
+                    if existing.is_empty() {
+                        // SAFETY: single-threaded at startup, before any threads are spawned
+                        unsafe { env::set_var(key, value); }
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
+
 fn main() {
+    load_dotenv();
     let args: Vec<String> = env::args().skip(1).collect();
 
     let mut repo = String::new();
