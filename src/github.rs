@@ -11,6 +11,7 @@ struct StargazerResponse {
 pub struct FetchResult {
     pub new_stars: Vec<DateTime<Utc>>,
     pub last_page: usize,
+    pub hit_pagination_limit: bool,
 }
 
 pub fn fetch_stargazers(
@@ -24,6 +25,7 @@ pub fn fetch_stargazers(
     let mut new_stars = Vec::new();
     let mut page = start_page;
     let mut total_pages = 0;
+    let mut hit_pagination_limit = false;
 
     loop {
         let url = format!(
@@ -49,7 +51,8 @@ pub fn fetch_stargazers(
             }
             Err(ureq::Error::StatusCode(422)) => {
                 // GitHub API pagination limit (max 40,000 results)
-                eprintln!("\nNote: GitHub API limits pagination to 40,000 stars. Data may be incomplete.");
+                eprintln!("\nNote: GitHub REST API limits pagination to 40,000 stars.");
+                hit_pagination_limit = true;
                 break;
             }
             Err(e) => {
@@ -110,6 +113,7 @@ pub fn fetch_stargazers(
     Ok(FetchResult {
         new_stars,
         last_page: page,
+        hit_pagination_limit,
     })
 }
 

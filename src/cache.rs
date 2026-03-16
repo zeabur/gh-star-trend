@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::github;
+use crate::graphql;
 
 #[derive(Serialize, Deserialize)]
 struct CacheData {
@@ -69,24 +70,26 @@ pub fn fetch_with_cache(
         _ => (Vec::new(), 1),
     };
 
+    // Phase 1: REST API fetch
+    let mut all = cached_stars.clone();
+    let mut last_page = start_page;
+    let mut hit_pagination_limit = false;
+
     match github::fetch_stargazers(owner, repo, token, &cached_stars, start_page) {
         Ok(result) => {
-            let all = merge_stars(&cached_stars, &result.new_stars);
+            all = merge_stars(&all, &result.new_stars);
+            last_page = result.last_page;
+            hit_pagination_limit = result.hit_pagination_limit;
 
             if !result.new_stars.is_empty() || result.last_page > start_page {
                 eprintln!(
-                    "Fetched {} new stars (total: {})",
+                    "REST: fetched {} new stars (total: {})",
                     result.new_stars.len(),
                     all.len()
                 );
-                if let Err(e) = save_cache(owner, repo, &all, result.last_page) {
-                    eprintln!("Warning: failed to save cache: {}", e);
-                }
-            } else if !cached_stars.is_empty() {
+            } else if !cached_stars.is_empty() && !hit_pagination_limit {
                 eprintln!("No new stars since last fetch.");
             }
-
-            Ok(all)
         }
         Err(e) => {
             if e.contains("rate limit") {
@@ -95,9 +98,39 @@ pub fn fetch_with_cache(
                     return Ok(cached_stars);
                 }
             }
-            Err(e)
+            return Err(e);
         }
     }
+
+    // Phase 2: GraphQL to fetch beyond 40k limit
+    if hit_pagination_limit && !token.is_empty() {
+        eprintln!("Switching to GraphQL API to fetch remaining stars...");
+        match graphql::fetch_remaining_stars(owner, repo, token, &all) {
+            Ok(gql_result) => {
+                if !gql_result.new_stars.is_empty() {
+                    all = merge_stars(&all, &gql_result.new_stars);
+                    eprintln!(
+                        "GraphQL: fetched {} additional stars (total: {}, actual: {})",
+                        gql_result.new_stars.len(),
+                        all.len(),
+                        gql_result.total_count
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("Warning: GraphQL fetch failed: {}. Using REST data only.", e);
+            }
+        }
+    }
+
+    // Save cache
+    if all.len() > cached_stars.len() {
+        if let Err(e) = save_cache(owner, repo, &all, last_page) {
+            eprintln!("Warning: failed to save cache: {}", e);
+        }
+    }
+
+    Ok(all)
 }
 
 fn merge_stars(cached: &[DateTime<Utc>], new_stars: &[DateTime<Utc>]) -> Vec<DateTime<Utc>> {

@@ -1,6 +1,7 @@
 mod analyze;
 mod cache;
 mod github;
+mod graphql;
 mod output;
 
 use std::env;
