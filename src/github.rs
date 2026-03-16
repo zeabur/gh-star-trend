@@ -39,15 +39,23 @@ pub fn fetch_stargazers(
             req = req.header("Authorization", &format!("Bearer {}", token));
         }
 
-        let resp = req.call().map_err(|e| {
-            if let ureq::Error::StatusCode(404) = e {
-                return format!("repository {}/{} not found", owner, repo);
+        let resp = match req.call() {
+            Ok(resp) => resp,
+            Err(ureq::Error::StatusCode(404)) => {
+                return Err(format!("repository {}/{} not found", owner, repo));
             }
-            if let ureq::Error::StatusCode(403) = e {
-                return "rate limit exceeded".to_string();
+            Err(ureq::Error::StatusCode(403)) => {
+                return Err("rate limit exceeded".to_string());
             }
-            format!("fetching stargazers: {}", e)
-        })?;
+            Err(ureq::Error::StatusCode(422)) => {
+                // GitHub API pagination limit (max 40,000 results)
+                eprintln!("\nNote: GitHub API limits pagination to 40,000 stars. Data may be incomplete.");
+                break;
+            }
+            Err(e) => {
+                return Err(format!("fetching stargazers: {}", e));
+            }
+        };
 
         if total_pages == 0 {
             if let Some(link) = resp.headers().get("link") {
