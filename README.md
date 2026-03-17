@@ -30,7 +30,7 @@ cp target/release/gh-star-trend /usr/local/bin/
 |  | 無 Token | 有 Token |
 |--|----------|----------|
 | 每小時 API 請求數 | 60 | 5,000 |
-| 每次可抓星星數 | ~6,000 | ~500,000 |
+| 每次可抓星星數 | ~6,000 | 無上限（GraphQL 補完） |
 | 適合 | 小型 repo (<6k 星) | 任何大小的 repo |
 
 #### 取得 Token
@@ -43,10 +43,13 @@ cp target/release/gh-star-trend /usr/local/bin/
 #### 設定 Token
 
 ```bash
-# 方式一：環境變數（推薦，寫進 .zshrc / .bashrc）
+# 方式一：.env 檔（推薦，放在執行目錄下）
+echo "GITHUB_TOKEN=ghp_xxxxxxxxxxxx" > .env
+
+# 方式二：環境變數
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
 
-# 方式二：參數
+# 方式三：參數
 ./gh-star-trend owner/repo --token ghp_xxxxxxxxxxxx
 ```
 
@@ -90,3 +93,11 @@ Linear regression (last 4):   90.1 stars/week (R²=0.99)
 | Linear regression slope | 最小二乘法回歸斜率，代表每週累積星數的成長速度 |
 | R² | 回歸擬合度，越接近 1 代表成長越線性穩定 |
 | last 4 wks | 最近 4 週的同上指標，用來看近期趨勢 |
+
+## 已知問題
+
+- **REST API 40k 分頁限制**：GitHub REST API 最多只能翻到第 400 頁（40,000 星）。超過此限制時會自動切換到 GraphQL API 補完剩餘的星星，但 GraphQL 需要 token 才能使用。
+- **大型 repo 首次抓取耗時**：超過 10 萬星的 repo 首次抓取可能需要數十分鐘（例如 300k 星約需 3,000+ 次 API 請求）。後續執行會使用快取，只抓取新增的部分。
+- **進度顯示不準確**：REST API 階段的 total pages 有時顯示不正確（例如顯示 `page 200/100`），因為 GitHub 的 `Link` header 只在第一頁回傳總頁數估計值。不影響實際抓取。
+- **GraphQL rate limit 中斷時不保存進度**：如果 GraphQL 抓取途中被 rate limit，目前不會保存已抓到的部分，需要下次重新從 REST cache 的位置開始補完。
+- **取消星星（unstar）不會從快取中移除**：快取只會增加星星，不會偵測已被移除的星星。如需重置，刪除 `~/.gh-star-trend/` 下對應的 JSON 檔案。
