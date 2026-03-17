@@ -101,3 +101,7 @@ Linear regression (last 4):   90.1 stars/week (R²=0.99)
 - **進度顯示不準確**：REST API 階段的 total pages 有時顯示不正確（例如顯示 `page 200/100`），因為 GitHub 的 `Link` header 只在第一頁回傳總頁數估計值。不影響實際抓取。
 - **GraphQL rate limit 中斷時不保存進度**：如果 GraphQL 抓取途中被 rate limit，目前不會保存已抓到的部分，需要下次重新從 REST cache 的位置開始補完。
 - **取消星星（unstar）不會從快取中移除**：快取只會增加星星，不會偵測已被移除的星星。如需重置，刪除 `~/.gh-star-trend/` 下對應的 JSON 檔案。
+
+## License
+
+[MIT](LICENSE)
