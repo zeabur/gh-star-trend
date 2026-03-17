@@ -2,6 +2,7 @@
 name = "gh-star-trend"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 ureq = { version = "3", features = ["json"] }
